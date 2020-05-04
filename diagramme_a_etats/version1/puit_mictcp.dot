@@ -1,0 +1,10 @@
+digraph G_MIC_TCP{
+    label="version 1 Puit MIC-TCP";
+n0[label="connect", shape="ellipse"]
+n1[label="Buffer non vides", shape="invtrapeze"]
+n3[label="Stockage dans les buffer du socket",shape="rectangle"]
+n4[label="Construction et envoie de l'ACK",shape="rectangle"]
+n5[label="Maj du prochain n° attendu", shape="rectangle"]
+n0->n1->n3
+n3->n4->n5->n0
+}

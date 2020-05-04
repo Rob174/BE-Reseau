@@ -1,0 +1,18 @@
+digraph G_MIC_TCP{
+    label="version 1 Puit MIC-TCP";
+n0[label="connect", shape="ellipse"]
+n1[label="Buffer non vides", shape="invtrapeze"]
+n2[label="N° seq ok DT.nseq=PA",shape="diamond"]
+n2_1[label="Taux d'erreur acceptable",shape="diamond"]
+n2_2[label="Construction et envoie des ACK manquants\nAvec les bons ACK.ack",shape="rectangle"]
+n2->n2_1[label="Faux"]
+n2_1 -> n2_2[label="Vrai"]
+n2_2 -> n3
+n2_1 -> n0[label="Faux"]
+n3[label="Stockage dans les buffer du socket",shape="rectangle"]
+n4[label="Prochain attendu PA=(PA+1)%2", shape="rectangle"]
+n5[label="Construction et envoie de l'ACK\nAvec ACK.ack=PA",shape="rectangle"]
+n0->n1->n2
+n2->n3[label="Vrai"]
+n3->n4->n5->n0
+}

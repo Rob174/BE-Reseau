@@ -1,0 +1,22 @@
+digraph G {
+    label="Stop and Wait version 1 Source";
+    n0[label="connect"]
+    n1[label="send()", shape="parallelogram"]
+    n2[label="Encapsulation de la DU dans une trame DT", shape="rectangle"]
+    n3[label="Stockage de DT dans un buffer", shape="rectangle"]
+    n4[label="Activation Timer", shape="rectangle"]
+n5[label="Envoi DT", shape="rectangle"]
+n6[label="Réception d'un ACK", shape="invtrapezium"]
+n7[label="Désactivation timer", shape="rectangle"]
+n8[label="Libération buffer DT", shape="rectangle"]
+n9[label="Expiration du Timer", shape="invtrapezium"]
+n9_1[label="Taux d'erreur ok",shape="diamond"]
+n9 -> n9_1
+n9_1 -> n8[label="Oui"]
+n10[label="Réactivation Timer", shape="rectangle"]
+n9_1 -> n10[label="Non"]
+n0 -> n1 -> n2 -> n3 -> n4 -> n5
+n5->n6 -> n7 -> n8 -> n0
+n5 -> n9
+n10 -> n5
+}

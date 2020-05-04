@@ -1,0 +1,11 @@
+digraph G_rcv {
+    label="version 1 rcv()";
+    n0[label="Idle"]
+n1[label="rcv()", shape="parallelogram"]
+n2[label="donnees_recues > 0", shape="diamond"]
+n3[label="Stockage dans les buffer de réception", shape="rectangle"]
+n0->n1->n2
+n2->n3[label="True"] 
+n3 -> n0
+n2->n0[label="False"]
+}
