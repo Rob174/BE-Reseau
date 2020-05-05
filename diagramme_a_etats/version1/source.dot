@@ -1,7 +1,7 @@
 digraph G {
     label="Stop and Wait version 1 Source";
     n0[label="connect"]
-    n1[label="send()", shape="parallelogram"]
+    n1[label="mic_tcpsend()", shape="parallelogram"]
     n2[label="Encapsulation de la DU dans une trame DT", shape="rectangle"]
     n3[label="Stockage de DT dans un buffer", shape="rectangle"]
     n4[label="Activation Timer", shape="rectangle"]
