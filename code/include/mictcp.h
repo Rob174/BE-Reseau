@@ -48,6 +48,7 @@ typedef struct mic_tcp_sock
   int fd;  /* descripteur du socket */
   protocol_state state; /* état du protocole */
   mic_tcp_sock_addr addr; /* adresse du socket */
+  int port_source;
 } mic_tcp_sock;
 
 /*
