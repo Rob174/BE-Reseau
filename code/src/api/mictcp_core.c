@@ -146,7 +146,7 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_sock_addr* addr, unsigned long timeout)
         memcpy (&(pk->header), buffer, API_HD_Size);
         pk->payload.size = result - API_HD_Size;
         memcpy (pk->payload.data, buffer + API_HD_Size, pk->payload.size);
-
+        printf("API_HD_Size:%d\n",API_HD_Size);
         /* Generate a stub address */
         if (addr != NULL) {
             addr->ip_addr = "localhost";
