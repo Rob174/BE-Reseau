@@ -3,20 +3,26 @@
 #include <time.h>
 #include <stdlib.h>
 #define TIMEOUT 1000
+#define TAUX_ERREUR_LIM 0.6 //En pourcents
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
  * Retourne le descripteur du socket ou bien -1 en cas d'erreur
  */
+typedef struct {
+    int somme;
+    int nombre_echant;
+    double moyenne;
+} moyenne_empirique;
 mic_tcp_sock sock;
 int PA = 1;
 int PE = 1;
+moyenne_empirique taux_echec = {0,0};
 int mic_tcp_socket(start_mode sm)
 {
     int result = -1;
     //printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     result = initialize_components(sm); /* Appel obligatoire */
-    set_loss_rate(0);
     sock.fd = 1;
     sock.state = ESTABLISHED;
     return result;
@@ -87,9 +93,20 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
             printf("\t\t\t\t✗ Refusé attendu %d et non %d\n",PE,ack.header.ack_num);
         else
             printf("\t\t\t\t✗ Perdu\n");
+        taux_echec.nombre_echant++;
+        taux_echec.somme++;
+        taux_echec.moyenne = (double)(taux_echec.somme)/(taux_echec.nombre_echant);
+        if(taux_echec.moyenne < TAUX_ERREUR_LIM){
+            printf("Perte tolérable....\n");
+            break;
+        }
+        else{
+            printf("Pertes trop importantes avec %f contre %f tolérables\n",taux_echec.moyenne,TAUX_ERREUR_LIM);
+        }
         nb_env = IP_send(pdu,sock.addr);
         nb_recu = IP_recv(&ack, &(sock.addr),TIMEOUT);
     }
+    taux_echec.nombre_echant++;
     printf("\t\t\t\t✔\n");
     return nb_env;
 }
