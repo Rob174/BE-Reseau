@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #define TIMEOUT 10
 #define TAUX_ERREUR_LIM 0.6 //en pourcents, taux d'erreurs de paquets accepté
-
+#define SYN_TIMEOUT 10000 //On attend plus longtemps pour la phase de connexion
 /** Structure permettant le calcul d'une moyenne empirique 1/n Σ xi
  * @param somme, entier Σ xi
  * @param nombre_echant, entier (nombre d'échantillons) n
@@ -31,7 +31,7 @@ int mic_tcp_socket(start_mode sm)
     result = initialize_components(sm); 
     sock.fd = 1;
     // Comme la partie de création effective du socket est laissée de côté pour le moment, la connexion est directement établie
-    sock.state = ESTABLISHED;
+    sock.state = IDLE;
     // Ajout de la perte de paquets
     set_loss_rate(50);
     return result;
@@ -46,6 +46,7 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     // comme bind n'est appelée qu'une fois (dans notre cas où il n'y a qu'un client), on s'en sert pour initialiser le générateur aléatoire
     srand(time(NULL));
+    sock.addr = addr;
     return 0;
 }
 
@@ -60,6 +61,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
     int port_source = 1000+(double)(rand())/RAND_MAX*100;
     printf("\t\t\t\t x --> %d\n",port_source);
     sock.port_source = port_source;
+    
     return 0;
 }
 
@@ -75,6 +77,24 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
         sock.addr = addr;
         result = 0;
     }
+    //Envoie du SYN
+    mic_tcp_pdu syn;
+    syn.header.source_port = sock.port_source;
+    syn.header.dest_port = sock.addr.port;
+    syn.payload.data = NULL;
+    syn.payload.size = 0;
+    syn.header.ack = 0;
+    syn.header.syn = 1;
+    sock.state = SYN_SENT;
+    int nb_env = IP_send(syn,sock.addr);
+    mic_tcp_pdu synack;
+    int nb_recu = IP_recv(&synack, &(sock.addr),SYN_TIMEOUT);
+    while(nb_recu == -1 && synack.header.ack == 1 && synack.header.syn == 1){
+        //Retransmission
+        nb_env = IP_send(syn,sock.addr);
+        nb_recu = IP_recv(&synack, &(sock.addr),SYN_TIMEOUT);
+    }
+    sock.state = ESTABLISHED;
     return result;
 }
 
@@ -161,6 +181,28 @@ int mic_tcp_close (int socket)
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
 {
     //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); 
+    mic_tcp_pdu synack;
+    synack.header.dest_port = pdu.header.source_port;
+    synack.header.source_port = pdu.header.dest_port;
+    synack.header.ack = 1;
+    synack.payload.data = NULL;
+    synack.payload.size = 0;
+    //Vérifie si cela correspond à la demande de connexion
+    if(pdu.header.syn == 1){//Auquel cas on envoie le SYNACK
+        synack.header.syn = 1;
+        IP_send(synack,addr);
+        sock.state = SYN_RECEIVED;
+        //On attend le ACK
+        mic_tcp_pdu ack;
+        int nb_recu = IP_recv(&ack, &(sock.addr),SYN_TIMEOUT);
+        while(nb_recu == -1 && ack.header.ack != 1){
+            //Retransmission du SYNACK
+            int nb_env = IP_send(synack,sock.addr);
+            nb_recu = IP_recv(&ack, &(sock.addr),SYN_TIMEOUT);
+        }
+        sock.state = ESTABLISHED;
+        return;
+    }
     mic_tcp_pdu ack;
     ack.header.dest_port = pdu.header.source_port;
     ack.header.source_port = pdu.header.dest_port;

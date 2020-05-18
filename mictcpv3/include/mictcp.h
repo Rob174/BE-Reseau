@@ -72,6 +72,7 @@ typedef struct mic_tcp_header
   unsigned char syn; /* flag SYN (valeur 1 si activé et 0 si non) */
   unsigned char ack; /* flag ACK (valeur 1 si activé et 0 si non) */
   unsigned char fin; /* flag FIN (valeur 1 si activé et 0 si non) */
+  unsigned int prec_tolere;/*Indique si le précédent paquet a été autorisé*/
 } mic_tcp_header;
 
 /*

@@ -19,6 +19,7 @@ moyenne_empirique taux_echec = {0,0};
 
 int PA = 1; // Prochain numéro attendu
 int PE = 1; // Prochain numéro envoyé
+int local_prec_tolere = 0; //0 : fonctionnement normal ; 1 : précédent paquet envoyé, perdu mais perte tolérée
 mic_tcp_sock sock;
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -33,7 +34,7 @@ int mic_tcp_socket(start_mode sm)
     // Comme la partie de création effective du socket est laissée de côté pour le moment, la connexion est directement établie
     sock.state = ESTABLISHED;
     // Ajout de la perte de paquets
-    set_loss_rate(50);
+    set_loss_rate(80);
     return result;
 }
 
@@ -92,7 +93,11 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     pdu.payload.size = mesg_size;
     pdu.header.ack = 0;
     pdu.header.seq_num = PE;
+    pdu.header.prec_tolere = local_prec_tolere;
+    local_prec_tolere = 0;
+    printf("Avant\n");
     int nb_env = IP_send(pdu,sock.addr);
+    printf("Envoyé !\n");
     PE = PE%2+1;
     //Sur réception d'un ACK ou expiration du Timer
     mic_tcp_pdu ack;
@@ -109,9 +114,11 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         // Si le taux d'erreur estimé reste inférieur à TAUX_ERREUR_LIM, on abandonne la retransmission du paquet perdu
         if(taux_echec.moyenne < TAUX_ERREUR_LIM){
             printf("Perte tolérable....\n");
+            local_prec_tolere = 1;
             break;
         }
-        else{
+        else {
+            local_prec_tolere = 0;
             printf("Pertes trop importantes avec %f pourcents contre %f pourcents tolérables\n",taux_echec.moyenne*100,TAUX_ERREUR_LIM*100);
         }
         //Retransmission
@@ -167,10 +174,13 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
     ack.header.ack = 1;
     ack.payload.data = NULL;
     ack.payload.size = 0;
+    //Si le précédent paquet 
+    if(pdu.header.prec_tolere == 1)
+        pdu.header.seq_num = PA;
     //Si on ne reçoit pas le paquet attendu
     if(pdu.header.seq_num != PA) {
         printf("\t\t\t\t✗ Refusé attendu %d et non %d\n",pdu.header.seq_num,PA);
-        //On attend toujours le même paquet
+        //On attend toujours le même paquet 
         ack.header.ack_num = PA;
     }
     else {
@@ -181,5 +191,5 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
         //On notifie quel paquet on attend et ainsi quel paquet on accepte avec le ACK
         ack.header.ack_num = PA;
     }
-    IP_send(ack,addr);
+    printf("ACK envoyé : %d\n",IP_send(ack,addr));
 }
