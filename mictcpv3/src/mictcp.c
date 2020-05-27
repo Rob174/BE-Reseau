@@ -3,6 +3,7 @@
 #include <time.h>
 #include <stdlib.h>
 #define TIMEOUT 10
+#define TAUX_RAFRAICHISSEMENT 50
 #define TAUX_ERREUR_LIM 0.6 //en pourcents, taux d'erreurs de paquets accepté
 
 /** Structure permettant le calcul d'une moyenne empirique 1/n Σ xi
@@ -34,7 +35,7 @@ int mic_tcp_socket(start_mode sm)
     // Comme la partie de création effective du socket est laissée de côté pour le moment, la connexion est directement établie
     sock.state = ESTABLISHED;
     // Ajout de la perte de paquets
-    set_loss_rate(80);
+    set_loss_rate(75);
     return result;
 }
 
@@ -101,6 +102,8 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     PE = PE%2+1;
     //Sur réception d'un ACK ou expiration du Timer
     mic_tcp_pdu ack;
+    ack.payload.data = 0;
+    ack.payload.size = 0;
     int nb_recu = IP_recv(&ack, &(sock.addr),TIMEOUT);
     while(nb_recu == -1 || ack.header.ack_num != PE){//Boucle tant que expiration du timer ou mauvais ACK
         if(ack.header.ack_num != PE)
@@ -129,6 +132,11 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     if(!(nb_recu == -1 || ack.header.ack_num != PE))//Vérifie que le paquet a bien été délivré
         taux_echec.nombre_echant++;
     printf("\t\t\t\t✔\n");
+    if(taux_echec.nombre_echant == TAUX_RAFRAICHISSEMENT){
+        taux_echec.nombre_echant = 0;
+        taux_echec.somme = 0;
+    }
+
     return nb_env;
 }
 
