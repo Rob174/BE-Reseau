@@ -117,7 +117,7 @@ int IP_send(mic_tcp_pdu pk, mic_tcp_sock_addr addr)
 {
     printf("\t\t\t%d\t---\t(%s|%d|%s)--->\t%d...\n",
             pk.header.source_port,
-            (pk.header.ack == 1 || pk.payload.data == NULL) ? "ACK ":"DATA",
+            (pk.header.ack == 1) ? (pk.header.syn == 1 ? "SYNACK" : "ACK"):(pk.header.syn == 1 ? "SYN" : "DATA"),
             (pk.header.ack == 1 || pk.payload.data == NULL) ? pk.header.ack_num : pk.header.seq_num,
             (pk.header.ack == 1 || pk.payload.data == NULL) ? "\t" : slice(pk.payload.data,0,pk.payload.size-2),
             pk.header.dest_port);
@@ -151,7 +151,6 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_sock_addr* addr, unsigned long timeout)
     if(initialized == -1) {
         return -1;
     }
-
     /* Compute the number of entire seconds */
     tv.tv_sec = timeout / 1000;
     /* Convert the remainder to microseconds */

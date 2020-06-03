@@ -21,6 +21,7 @@ int PA = 1; // Prochain numéro attendu
 int PE = 1; // Prochain numéro envoyé
 int local_prec_tolere = 0; //0 : fonctionnement normal ; 1 : précédent paquet envoyé, perdu mais perte tolérée
 int taux_erreur_lim = 0.000001;
+int prec_paquet = -1;//Indique au puit si le précédent paquet était un SYN (1 pour oui)
 mic_tcp_sock sock;
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -32,7 +33,6 @@ int mic_tcp_socket(start_mode sm)
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     result = initialize_components(sm); 
     sock.fd = 1;
-    // Comme la partie de création effective du socket est laissée de côté pour le moment, la connexion est directement établie
     sock.state = IDLE;
     // Ajout de la perte de paquets
     set_loss_rate(80);
@@ -48,6 +48,8 @@ int mic_tcp_bind(int socket, mic_tcp_sock_addr addr)
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     // comme bind n'est appelée qu'une fois (dans notre cas où il n'y a qu'un client), on s'en sert pour initialiser le générateur aléatoire
     srand(time(NULL));
+    sock.fd = 1;
+    sock.state = IDLE;
     return 0;
 }
 
@@ -62,19 +64,22 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
     int port_source = 1000+(double)(rand())/RAND_MAX*100;
     printf("\t\t\t\t x --> %d\n",port_source);
     sock.port_source = port_source;
-    mic_tcp_pdu synack;
-    int nb_recu = IP_recv(&synack, &(sock.addr),TIMEOUT);
-    while(nb_recu == -1){
-        nb_recu = IP_recv(&synack, &(sock.addr),TIMEOUT);
+    sock.addr = *addr;
+    //Tant qu'on a pas reçu le syn on se met en attente
+    while(sock.state != SYN_RECEIVED){
     }
-    sock.state = SYN_RECEIVED;
-    mic_tcp_pdu syn;
-    syn.header.source_port = sock.port_source;
-    syn.header.dest_port = sock.addr.port;
-    syn.payload.data = 0;
-    syn.payload.size = 0;
-    syn.header.ack = 0;
-    syn.header.syn = 1;
+    mic_tcp_pdu synack;
+    synack.payload.data = NULL;
+    synack.payload.size = 0;
+    synack.header.ack_num = (int)(TAUX_ERREUR_LIM *100);
+    synack.header.source_port = sock.port_source;
+    synack.header.dest_port = sock.addr.port;
+    synack.header.ack = 1;
+    synack.header.syn = 1;
+    while(sock.state != ESTABLISHED){
+        IP_send(synack,sock.addr);
+        printf("Taux erreur envoye : %s\n",synack.payload.data);
+    }
     return 0;
 }
 
@@ -85,11 +90,7 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    int result = -1;
-    if(socket == 1) {
-        sock.addr = addr;
-        result = 0;
-    }
+    sock.addr = addr;
     sock.state = SYN_SENT;
     mic_tcp_pdu syn;
     syn.header.source_port = sock.port_source;
@@ -99,14 +100,14 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     syn.header.ack = 0;
     syn.header.syn = 1;
     printf("Connect \n");
-    int nb_rec = -1;
-    while (nb_rec==-1)
+    mic_tcp_pdu synack;
+    synack.header.syn = -1;
+    synack.header.ack = -1;
+    do //Envoie le SYN tant que le SYNACK n'est pas reçu
     {
         IP_send(syn,sock.addr);
-        mic_tcp_pdu synack;
-        nb_rec = IP_recv(&synack, &(sock.addr),TIMEOUT);
-    }
-    sock.state = SYN_RECEIVED;
+    } while (IP_recv(&synack, &(sock.addr),TIMEOUT) == -1 || synack.header.syn != 1 || synack.header.ack != 1);
+    printf("Taux d'erreur : %d",synack.header.ack_num);
     mic_tcp_pdu ack;
     ack.header.source_port = sock.port_source;
     ack.header.dest_port = sock.addr.port;
@@ -116,10 +117,10 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     ack.header.syn = 0;
     ack.header.ack_num = -1;//Pour éviter de confondre avec d'autres ACK
     ack.header.seq_num = -1;
-    IP_send(syn,sock.addr);
+    IP_send(ack,sock.addr);//Envoie simple du ACK
     
     sock.state = ESTABLISHED;
-    return result;
+    return 0;
 }
 
 /*
@@ -210,7 +211,8 @@ int mic_tcp_close (int socket)
  */
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
 {
-
+    if(prec_paquet == 1)
+        sock.state = ESTABLISHED;
     //printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); 
     mic_tcp_pdu ack;
     ack.header.dest_port = pdu.header.source_port;
@@ -218,13 +220,6 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
     ack.header.ack = 1;
     ack.payload.data = NULL;
     ack.payload.size = 0;
-    if(pdu.header.syn == 1){
-        ack.header.syn = 1;
-        printf("Avant %s\n",ack.payload.data);
-        atof(ack.payload.data);
-        printf("Avant\n");
-        taux_erreur_lim = atof(ack.payload.data);//Même si il y a une erreur sur le atof la valeur retournée est 0 qui convient à la situation
-    }
     //Si le précédent paquet 
     if(pdu.header.prec_tolere == 1)
         pdu.header.seq_num = PA;
@@ -241,6 +236,14 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
         PA = PA%2+1;
         //On notifie quel paquet on attend et ainsi quel paquet on accepte avec le ACK
         ack.header.ack_num = PA;
+    }
+    if(pdu.header.syn == 1){//côté puit
+        if(pdu.header.ack != 1) {//Réception du SYN
+            prec_paquet = 1;
+            sock.state = SYN_RECEIVED;
+        }
+        if(pdu.header.ack == 1)//Réception du dernier ACK de connexion
+            sock.state = ESTABLISHED;
     }
     printf("ACK envoyé : %d\n",IP_send(ack,addr));
 }
