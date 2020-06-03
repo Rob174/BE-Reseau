@@ -182,7 +182,7 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
     ack.header.ack = 1;
     ack.payload.data = NULL;
     ack.payload.size = 0;
-    //Si le précédent paquet 
+    //Si le précédent paquet a été une perte tolérée
     if(pdu.header.prec_tolere == 1)
         pdu.header.seq_num = PA;
     //Si on ne reçoit pas le paquet attendu
